@@ -1,0 +1,156 @@
+import java.io.*;
+import java.sql.*;
+import javax.servlet.*;
+import javax.servlet.http.*;
+
+// === Full Integrated Servlet Application ===
+// Combines: Login + Employee Display + Attendance Submission
+
+public class WebApp extends HttpServlet {
+
+    // Database connection details
+    static final String URL = "jdbc:mysql://localhost:3306/testdb";
+    static final String USER = "root";
+    static final String PASS = "root";
+
+    // Utility: get database connection
+    public static Connection getConnection() throws Exception {
+        Class.forName("com.mysql.cj.jdbc.Driver");
+        return DriverManager.getConnection(URL, USER, PASS);
+    }
+
+    @Override
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        // Display Login Page by default
+        response.setContentType("text/html");
+        PrintWriter out = response.getWriter();
+        out.println("<html><body style='font-family:Arial;'>");
+        out.println("<h2>User Login</h2>");
+        out.println("<form method='post'>");
+        out.println("Username: <input type='text' name='username'><br><br>");
+        out.println("Password: <input type='password' name='password'><br><br>");
+        out.println("<input type='hidden' name='action' value='login'>");
+        out.println("<input type='submit' value='Login'>");
+        out.println("</form>");
+        out.println("</body></html>");
+    }
+
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+
+        response.setContentType("text/html");
+        PrintWriter out = response.getWriter();
+
+        String action = request.getParameter("action");
+
+        try {
+            if ("login".equals(action)) {
+                handleLogin(request, out);
+            } else if ("viewEmployees".equals(action)) {
+                showEmployeeList(request, out);
+            } else if ("attendanceForm".equals(action)) {
+                showAttendanceForm(out);
+            } else if ("saveAttendance".equals(action)) {
+                saveAttendance(request, out);
+            }
+        } catch (Exception e) {
+            out.println("<p style='color:red;'>Error: " + e.getMessage() + "</p>");
+        }
+    }
+
+    // === PART A: LOGIN HANDLING ===
+    private void handleLogin(HttpServletRequest request, PrintWriter out) {
+        String user = request.getParameter("username");
+        String pass = request.getParameter("password");
+
+        if ("admin".equals(user) && "1234".equals(pass)) {
+            out.println("<h2>Welcome, " + user + "!</h2>");
+            out.println("<form method='post'>");
+            out.println("<input type='hidden' name='action' value='viewEmployees'>");
+            out.println("<input type='submit' value='View Employees'>");
+            out.println("</form><br>");
+            out.println("<form method='post'>");
+            out.println("<input type='hidden' name='action' value='attendanceForm'>");
+            out.println("<input type='submit' value='Submit Attendance'>");
+            out.println("</form>");
+        } else {
+            out.println("<h3 style='color:red;'>Invalid Credentials!</h3>");
+            out.println("<a href='WebApp'>Try Again</a>");
+        }
+    }
+
+    // === PART B: DISPLAY EMPLOYEES USING JDBC ===
+    private void showEmployeeList(HttpServletRequest request, PrintWriter out) throws Exception {
+        String empID = request.getParameter("empID");
+        try (Connection con = getConnection()) {
+            String sql;
+            if (empID != null && !empID.isEmpty())
+                sql = "SELECT * FROM Employee WHERE EmpID=" + empID;
+            else
+                sql = "SELECT * FROM Employee";
+            Statement st = con.createStatement();
+            ResultSet rs = st.executeQuery(sql);
+
+            out.println("<h2>Employee Records</h2>");
+            out.println("<form method='post'>");
+            out.println("Search by EmpID: <input type='text' name='empID'>");
+            out.println("<input type='hidden' name='action' value='viewEmployees'>");
+            out.println("<input type='submit' value='Search'></form><br>");
+
+            out.println("<table border='1' cellpadding='5'><tr><th>ID</th><th>Name</th><th>Salary</th></tr>");
+            while (rs.next()) {
+                out.println("<tr><td>" + rs.getInt("EmpID") + "</td>");
+                out.println("<td>" + rs.getString("Name") + "</td>");
+                out.println("<td>" + rs.getDouble("Salary") + "</td></tr>");
+            }
+            out.println("</table><br>");
+            out.println("<form method='post'>");
+            out.println("<input type='hidden' name='action' value='attendanceForm'>");
+            out.println("<input type='submit' value='Go to Attendance'>");
+            out.println("</form>");
+        }
+    }
+
+    // === PART C: SHOW ATTENDANCE FORM ===
+    private void showAttendanceForm(PrintWriter out) {
+        out.println("<h2>Student Attendance Form</h2>");
+        out.println("<form method='post'>");
+        out.println("Student ID: <input type='text' name='studentId' required><br><br>");
+        out.println("Date: <input type='date' name='date' required><br><br>");
+        out.println("Status: <select name='status'>");
+        out.println("<option value='Present'>Present</option>");
+        out.println("<option value='Absent'>Absent</option>");
+        out.println("</select><br><br>");
+        out.println("<input type='hidden' name='action' value='saveAttendance'>");
+        out.println("<input type='submit' value='Submit Attendance'>");
+        out.println("</form>");
+    }
+
+    // === PART C: SAVE ATTENDANCE TO DATABASE ===
+    private void saveAttendance(HttpServletRequest request, PrintWriter out) throws Exception {
+        String studentId = request.getParameter("studentId");
+        String date = request.getParameter("date");
+        String status = request.getParameter("status");
+
+        try (Connection con = getConnection()) {
+            String sql = "INSERT INTO Attendance(StudentID, Date, Status) VALUES(?,?,?)";
+            PreparedStatement ps = con.prepareStatement(sql);
+            ps.setString(1, studentId);
+            ps.setString(2, date);
+            ps.setString(3, status);
+
+            int i = ps.executeUpdate();
+            if (i > 0)
+                out.println("<h3>Attendance saved successfully!</h3>");
+            else
+                out.println("<h3 style='color:red;'>Failed to save attendance.</h3>");
+
+            out.println("<form method='post'>");
+            out.println("<input type='hidden' name='action' value='viewEmployees'>");
+            out.println("<input type='submit' value='Back to Employees'>");
+            out.println("</form>");
+        }
+    }
+}
