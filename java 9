@@ -1,0 +1,233 @@
+// ===== Combined Spring + Hibernate Example =====
+// Part a: Dependency Injection
+// Part b: Hibernate CRUD
+// Part c: Transaction Management
+// -----------------------------------------------
+
+import org.springframework.context.annotation.*;
+import org.springframework.stereotype.*;
+import org.springframework.beans.factory.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.*;
+
+// ===== Part A: Dependency Injection using Spring Java-based Configuration =====
+
+class Course {
+    private String courseName = "Spring Framework";
+    public String getCourseName() {
+        return courseName;
+    }
+}
+
+class Student {
+    private Course course;
+
+    // Constructor-based DI
+    public Student(Course course) {
+        this.course = course;
+    }
+
+    public void showDetails() {
+        System.out.println("Student enrolled in: " + course.getCourseName());
+    }
+}
+
+// Spring Configuration for DI
+@Configuration
+class SpringConfig {
+    @Bean
+    public Course course() {
+        return new Course();
+    }
+
+    @Bean
+    public Student student(Course course) {
+        return new Student(course);
+    }
+}
+
+// ===== Part B: Hibernate CRUD Simulation =====
+
+@Entity
+class StudentEntity {
+    @Id
+    private int id;
+    @Column
+    private String name;
+    @Column
+    private String dept;
+
+    public StudentEntity() {}
+    public StudentEntity(int id, String name, String dept) {
+        this.id = id;
+        this.name = name;
+        this.dept = dept;
+    }
+
+    public int getId() { return id; }
+    public String getName() { return name; }
+    public String getDept() { return dept; }
+    public void setName(String name) { this.name = name; }
+    public void setDept(String dept) { this.dept = dept; }
+
+    @Override
+    public String toString() {
+        return id + " | " + name + " | " + dept;
+    }
+}
+
+// Simulated Hibernate Session Factory and CRUD operations
+class HibernateUtil {
+    private static Map<Integer, StudentEntity> db = new HashMap<>();
+
+    public static void save(StudentEntity s) {
+        db.put(s.getId(), s);
+        System.out.println("[Hibernate] Saved: " + s);
+    }
+
+    public static StudentEntity get(int id) {
+        return db.get(id);
+    }
+
+    public static void update(StudentEntity s) {
+        db.put(s.getId(), s);
+        System.out.println("[Hibernate] Updated: " + s);
+    }
+
+    public static void delete(int id) {
+        db.remove(id);
+        System.out.println("[Hibernate] Deleted student ID: " + id);
+    }
+
+    public static void listAll() {
+        System.out.println("[Hibernate] All Students:");
+        for (StudentEntity s : db.values()) System.out.println(s);
+    }
+}
+
+// ===== Part C: Spring + Hibernate Transaction Management Simulation =====
+
+class Account {
+    private int accNo;
+    private double balance;
+
+    public Account(int accNo, double balance) {
+        this.accNo = accNo;
+        this.balance = balance;
+    }
+
+    public int getAccNo() { return accNo; }
+    public double getBalance() { return balance; }
+    public void setBalance(double balance) { this.balance = balance; }
+
+    @Override
+    public String toString() {
+        return "Account[" + accNo + "] Balance: " + balance;
+    }
+}
+
+@Repository
+class AccountDAO {
+    private Map<Integer, Account> accounts = new HashMap<>();
+
+    public AccountDAO() {
+        accounts.put(101, new Account(101, 5000));
+        accounts.put(102, new Account(102, 3000));
+    }
+
+    public Account getAccount(int accNo) {
+        return accounts.get(accNo);
+    }
+
+    public void updateAccount(Account acc) {
+        accounts.put(acc.getAccNo(), acc);
+    }
+
+    public void showAll() {
+        for (Account a : accounts.values()) System.out.println(a);
+    }
+}
+
+@Service
+class BankingService {
+    @Autowired
+    private AccountDAO dao;
+
+    @Transactional
+    public void transferMoney(int fromAcc, int toAcc, double amount) {
+        Account src = dao.getAccount(fromAcc);
+        Account dest = dao.getAccount(toAcc);
+
+        System.out.println("\n[Transaction Start]");
+        if (src.getBalance() < amount) {
+            throw new RuntimeException("Insufficient balance in account " + fromAcc);
+        }
+
+        src.setBalance(src.getBalance() - amount);
+        dest.setBalance(dest.getBalance() + amount);
+
+        dao.updateAccount(src);
+        dao.updateAccount(dest);
+        System.out.println("[Transaction Commit] Transfer successful!");
+    }
+}
+
+// Configuration for Transaction Demo
+@Configuration
+@ComponentScan(basePackages = "bankapp")
+@EnableTransactionManagement
+class BankConfig {
+    @Bean
+    public AccountDAO accountDAO() {
+        return new AccountDAO();
+    }
+
+    @Bean
+    public BankingService bankingService() {
+        return new BankingService();
+    }
+}
+
+// ===== MAIN DEMONSTRATION =====
+
+public class SpringHibernateApp {
+    public static void main(String[] args) {
+        System.out.println("=== Part A: Dependency Injection Demo ===");
+        AnnotationConfigApplicationContext ctx1 = new AnnotationConfigApplicationContext(SpringConfig.class);
+        Student stu = ctx1.getBean(Student.class);
+        stu.showDetails();
+        ctx1.close();
+
+        System.out.println("\n=== Part B: Hibernate CRUD Demo ===");
+        StudentEntity s1 = new StudentEntity(1, "Riya", "CSE");
+        StudentEntity s2 = new StudentEntity(2, "Aditya", "ECE");
+
+        HibernateUtil.save(s1);
+        HibernateUtil.save(s2);
+        HibernateUtil.listAll();
+
+        s1.setDept("AI");
+        HibernateUtil.update(s1);
+        HibernateUtil.listAll();
+
+        HibernateUtil.delete(2);
+        HibernateUtil.listAll();
+
+        System.out.println("\n=== Part C: Spring Transaction Management Demo ===");
+        AnnotationConfigApplicationContext ctx2 = new AnnotationConfigApplicationContext(BankConfig.class);
+        BankingService bank = ctx2.getBean(BankingService.class);
+        AccountDAO dao = ctx2.getBean(AccountDAO.class);
+
+        dao.showAll();
+        bank.transferMoney(101, 102, 1000);
+        dao.showAll();
+
+        ctx2.close();
+    }
+}
+
+// ===== Dummy Annotations to Simulate Hibernate (For Single File Demo) =====
+@interface Entity {}
+@interface Id {}
+@interface Column {}
