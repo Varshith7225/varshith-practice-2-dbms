@@ -1,0 +1,22 @@
+const express = require('express');
+const path = require('path');
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Health check endpoint for ALB
+app.get('/health', (req, res) => res.send('OK'));
+
+// API endpoint example
+app.get('/api/data', (req, res) => {
+  res.json({ message: 'Hello from backend!' });
+});
+
+// Serve frontend build (if hosted together)
+app.use(express.static(path.join(__dirname, '../frontend/build')));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
